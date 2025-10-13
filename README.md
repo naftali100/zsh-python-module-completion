@@ -2,6 +2,8 @@
 
 A zsh plugin that provides intelligent tab completion for `python -m` commands with hierarchical module navigation and smart project detection.
 
+[![asciicast](https://asciinema.org/a/748646.svg)](https://asciinema.org/a/748646)
+
 ## Features
 
 - **Immediate Completion**: Works with both `python -m<TAB>` and `python -m <TAB>`
