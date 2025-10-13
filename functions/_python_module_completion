@@ -1,0 +1,273 @@
+#compdef python python3
+
+_python_module_completion() {
+    local curcontext="$curcontext" state line
+    typeset -A opt_args
+
+    _arguments -C \
+        '-m[run library module as a script]:module:->module' \
+        '*::arg:->args' && return 0
+
+    case "$state" in
+        module)
+            # Now we're completing the module after -m
+            _python_complete_modules
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+_python_complete_modules() {
+
+    # Check if we are in a python project
+    if ! _is_python_project; then
+        return 1
+    fi
+
+    local -a modules completions
+    local cur_word prefix
+    
+    modules=($(_find_python_modules))
+    cur_word="${words[CURRENT]}"
+    
+    # For hierarchical completion
+    prefix=""
+    
+    # First check if the current word is a complete module that has submodules
+    for module in "${modules[@]}"; do
+        if [[ "$module" == "${cur_word}."* ]]; then
+            prefix="${cur_word}."
+            break
+        fi
+    done
+    
+    # If not found as complete module, check if it's a partial completion
+    if [[ -z "$prefix" && "$cur_word" == *.* ]]; then
+        prefix="${cur_word%.*}."
+    fi
+
+    # Build completion list
+    for module in "${modules[@]}"; do
+        if [[ "$module" == "${prefix}"* ]]; then
+            if [[ -n "$prefix" ]]; then
+                # Remove prefix and get first component after it
+                local temp="${module#$prefix}"
+                local comp="${temp%%.*}"
+                if [[ -n "$comp" ]]; then
+                    completions+=("${prefix}${comp}")
+                fi
+            else
+                # Get top-level module name
+                local comp="${module%%.*}"
+                completions+=("$comp")
+            fi
+        fi
+    done
+    
+    # Remove duplicates and complete
+    if [[ ${#completions[@]} -gt 0 ]]; then
+        local -a unique_completions
+        for item in "${completions[@]}"; do
+            if [[ ! " ${unique_completions[@]} " =~ " ${item} " ]]; then
+                unique_completions+=("$item")
+            fi
+        done
+        
+        # If we're completing at the top level (no prefix)
+        if [[ -z "$prefix" ]]; then
+            # Check if any top-level modules have sub-modules
+            local -a modules_with_subs modules_without_subs
+            for completion in "${unique_completions[@]}"; do
+                local has_sub=0
+                for module in "${modules[@]}"; do
+                    if [[ "$module" == "${completion}."* ]]; then
+                        has_sub=1
+                        break
+                    fi
+                done
+                if [[ $has_sub -eq 1 ]]; then
+                    modules_with_subs+=("$completion")
+                else
+                    modules_without_subs+=("$completion")
+                fi
+            done
+            
+            # Complete modules without sub-modules with space, others without suffix
+            if [[ ${#modules_without_subs[@]} -gt 0 ]]; then
+                compadd -S " " -a modules_without_subs
+            fi
+            if [[ ${#modules_with_subs[@]} -gt 0 ]]; then
+                compadd -S "" -a modules_with_subs
+            fi
+        else
+            # We're completing sub-modules, check how many sub-modules exist for the current prefix
+            local -a submodules_for_prefix modules_with_subsubs modules_without_subsubs
+            local base_module="${prefix%.*}"  # Remove the trailing dot
+            
+            for module in "${modules[@]}"; do
+                if [[ "$module" == "${base_module}."* ]]; then
+                    local submodule="${module#${base_module}.}"
+                    local first_component="${submodule%%.*}"
+                    if [[ ! " ${submodules_for_prefix[@]} " =~ " ${first_component} " ]]; then
+                        submodules_for_prefix+=("$first_component")
+                    fi
+                fi
+            done
+            
+            # If only one submodule, check if it has further submodules
+            if [[ ${#submodules_for_prefix[@]} -eq 1 ]]; then
+                local full_submodule="${base_module}.${submodules_for_prefix[1]}"
+                local has_further_subs=0
+                
+                for module in "${modules[@]}"; do
+                    if [[ "$module" == "${full_submodule}."* ]]; then
+                        has_further_subs=1
+                        break
+                    fi
+                done
+                
+                if [[ $has_further_subs -eq 1 ]]; then
+                    # Has further submodules, complete without space
+                    compadd -S "" "$full_submodule"
+                else
+                    # No further submodules, complete with space
+                    compadd -S " " "$full_submodule"
+                fi
+            else
+                # Multiple submodules, categorize them by whether they have sub-submodules
+                for submod in "${submodules_for_prefix[@]}"; do
+                    local full_submod="${base_module}.${submod}"
+                    local has_subsubs=0
+                    
+                    for module in "${modules[@]}"; do
+                        if [[ "$module" == "${full_submod}."* ]]; then
+                            has_subsubs=1
+                            break
+                        fi
+                    done
+                    
+                    if [[ $has_subsubs -eq 1 ]]; then
+                        modules_with_subsubs+=("$submod")
+                    else
+                        modules_without_subsubs+=("$submod")
+                    fi
+                done
+                
+                # Complete modules without sub-submodules with space, others without suffix
+                if [[ ${#modules_without_subsubs[@]} -gt 0 ]]; then
+                    compadd -P "${prefix}" -S " " -a modules_without_subsubs
+                fi
+                if [[ ${#modules_with_subsubs[@]} -gt 0 ]]; then
+                    compadd -P "${prefix}" -S "" -a modules_with_subsubs
+                fi
+            fi
+        fi
+    fi
+}
+
+_is_python_project() {
+    # Check for common virtual environment directory names
+    if [ -d "venv" ] || [ -d ".venv" ] || [ -d "env" ] || [ -d ".env" ]; then
+        return 0
+    fi
+
+    # Check for directories with pyvenv.cfg (virtual environment marker)
+    if [ -n "$(find . -maxdepth 2 -name "pyvenv.cfg" -print -quit 2>/dev/null)" ]; then
+        return 0
+    fi
+
+    # Check if current Python is in a virtual environment
+    local python_path
+    python_path=$(python -c "import sys; print(sys.executable)" 2>/dev/null)
+    if [[ -n "$python_path" && "$python_path" == *"/venv/"* ]] || \
+       [[ -n "$python_path" && "$python_path" == *"/.venv/"* ]] || \
+       [[ -n "$python_path" && "$python_path" == *"/env/"* ]] || \
+       [[ -n "$python_path" && "$python_path" == *"/.env/"* ]]; then
+        return 0
+    fi
+
+    # Also check python3 if python is not available or doesn't indicate a venv
+    python_path=$(python3 -c "import sys; print(sys.executable)" 2>/dev/null)
+    if [[ -n "$python_path" && "$python_path" == *"/venv/"* ]] || \
+       [[ -n "$python_path" && "$python_path" == *"/.venv/"* ]] || \
+       [[ -n "$python_path" && "$python_path" == *"/env/"* ]] || \
+       [[ -n "$python_path" && "$python_path" == *"/.env/"* ]]; then
+        return 0
+    fi
+
+    # Check for conda environment
+    if [[ -n "$CONDA_DEFAULT_ENV" ]] || [[ -n "$VIRTUAL_ENV" ]]; then
+        return 0
+    fi
+
+    # Check for project files
+    if [ -f "pyproject.toml" ] || [ -f "setup.py" ] || [ -f "requirements.txt" ] || [ -f "Pipfile" ] || [ -f "poetry.lock" ]; then
+        return 0
+    fi
+
+    # Check for __init__.py files
+    if [ -n "$(find . -maxdepth 3 -name '__init__.py' -print -quit)" ]; then
+        return 0
+    fi
+
+    return 1
+}
+
+_find_python_modules() {
+    local exclude_paths modules py_files
+    
+    # Build exclusion list for virtual environments and common non-project directories
+    exclude_paths=""
+    
+    # Exclude common virtual environment directory names
+    for venv_dir in "venv" ".venv" "env" ".env"; do
+        if [ -d "$venv_dir" ]; then
+            exclude_paths="$exclude_paths -not -path './$venv_dir/*'"
+        fi
+    done
+    
+    # Find and exclude directories with pyvenv.cfg
+    local -a pyvenv_dirs
+    pyvenv_dirs=($(find . -maxdepth 2 -name "pyvenv.cfg" -exec dirname {} \; 2>/dev/null | sed 's|^\./||'))
+    for pyvenv_dir in "${pyvenv_dirs[@]}"; do
+        if [[ -n "$pyvenv_dir" ]]; then
+            exclude_paths="$exclude_paths -not -path './$pyvenv_dir/*'"
+        fi
+    done
+    
+    # Also exclude common build/cache directories
+    exclude_paths="$exclude_paths -not -path './__pycache__/*' -not -path './build/*' -not -path './dist/*' -not -path './.pytest_cache/*' -not -path './.tox/*' -not -path './node_modules/*'"
+    
+    # Find packages (directories with __init__.py)
+    local package_cmd
+    package_cmd="find . -type f -name '__init__.py' $exclude_paths"
+    modules=$(eval $package_cmd | sed -e 's|/__init__\.py$||g' -e 's|^\./||g' -e 's|/|.|g' | grep -v '^$')
+    
+    # Find top-level Python files (in root directory only)
+    py_files=$(find . -maxdepth 1 -type f -name '*.py' -not -name '__init__.py' | sed -e 's|\.py$||g' -e 's|^\./||g' | grep -v '^$')
+    
+    # Find Python files in package directories (directories that have __init__.py)
+    local -a package_dirs_array
+    package_dirs_array=($(eval $package_cmd | sed -e 's|/__init__\.py$||g' -e 's|^\./||g' | grep -v '^$'))
+    
+    local -a package_py_files_array
+    for dir in "${package_dirs_array[@]}"; do
+        if [[ -n "$dir" ]]; then
+            local dir_path="./$dir"
+            local -a files_in_package
+            files_in_package=($(find "$dir_path" -maxdepth 1 -type f -name '*.py' -not -name '__init__.py' 2>/dev/null | sed -e 's|\.py$||g' -e 's|^\./||g' -e 's|/|.|g' | grep -v '^$'))
+            package_py_files_array+=("${files_in_package[@]}")
+        fi
+    done
+    
+    # Combine and sort packages, top-level files, and package files
+    {
+        echo "$modules"
+        echo "$py_files"
+        printf '%s\n' "${package_py_files_array[@]}"
+    } | grep -v '^$' | sort -u
+}
+
