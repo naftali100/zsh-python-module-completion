@@ -9,7 +9,6 @@ A zsh plugin that provides intelligent tab completion for `python -m` commands w
 - **Immediate Completion**: Works with both `python -m<TAB>` and `python -m <TAB>`
 - **Hierarchical Navigation**: Navigate through nested modules with tab completion (e.g., `my_package.submodule.deeper`)
 - **Smart Project Detection**: Automatically detects Python projects via virtual environments, `__init__.py` files, and project configuration files
-- **Performance Optimized**: Caches module discovery results with configurable TTL
 - **Cross-Platform**: Works on Linux, macOS, and other Unix-like systems
 - **Intelligent Filtering**: Excludes virtual environments and build directories from completion
 - **Smart Suffix Handling**: Modules with submodules complete without space, final modules complete with space
@@ -101,17 +100,6 @@ Tab completion works as:
 3. `python -m my_module.<TAB>` → `sub_module`, `utils`
 4. `python -m my_module.sub_module.<TAB>` → `deep_module`
 
-## Configuration
-
-Set these environment variables before sourcing the plugin:
-
-```bash
-# Cache directory (default: ~/.cache/zsh-python-module-completion)
-export ZSH_PYTHON_MODULE_COMPLETION_CACHE_DIR="$HOME/.cache/my-completion"
-
-# Cache TTL in seconds (default: 300)
-export ZSH_PYTHON_MODULE_COMPLETION_CACHE_TTL=600
-```
 
 ## Project Detection
 
