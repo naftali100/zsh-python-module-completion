@@ -1,0 +1,15 @@
+# This is a marker file for zsh-python-module-completion plugin
+#
+# When this file (named .local_module_completion) exists in your Python project root,
+# the plugin will scan local modules in your project for completion.
+#
+# Without this file, zsh's default Python module completion will be used instead,
+# which shows installed packages from your Python environment.
+#
+# To enable local module completion in your project:
+#   cp .local_module_completion.example .local_module_completion
+# Or simply:
+#   touch .local_module_completion
+#
+# You can add this file to your .gitignore if you don't want to commit it,
+# or commit it to enable local completion for all project contributors.

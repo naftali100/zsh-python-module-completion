@@ -13,6 +13,10 @@ autoload -U compinit && compinit
 # Load the completion function
 autoload -U _python_module_completion
 
-# Register the completion function for python -m and python3 -m
-compdef _python_module_completion python
-compdef _python_module_completion python3
+# # Register the completion function for python -m and python3 -m
+# compdef _python_module_completion python
+# compdef _python_module_completion python3
+
+# Register the completion function for all Python version variants
+# This matches python, python2, python3, python3.10, python3.13, etc.
+compdef _python_module_completion -P 'python[0-9.]#'

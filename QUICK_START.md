@@ -13,7 +13,13 @@ echo "source ~/.zsh/zsh-python-module-completion/python-module-completion/python
 
 # Reload your shell
 source ~/.zshrc
+
+# Enable local module completion in your Python project
+cd /path/to/your/python/project
+touch .local_module_completion
 ```
+
+**Note**: Without the `.local_module_completion` file, the plugin uses zsh's default Python module completion. Create this file in your project root to enable local module scanning.
 
 ## Features
 

@@ -22,9 +22,11 @@ _python_module_completion() {
 
 _python_complete_modules() {
 
-    # Check if we are in a python project
-    if ! _is_python_project; then
-        return 1
+    # Check if we are in a python project AND have the marker file
+    if ! _should_use_local_completion; then
+        # Fall back to default completion
+        _default_python_module_completion
+        return $?
     fi
 
     local -a modules completions
@@ -213,6 +215,38 @@ _is_python_project() {
         return 0
     fi
 
+    return 1
+}
+
+_should_use_local_completion() {
+    # Check if .local_module_completion file exists in current or parent directories
+    local dir="$PWD"
+    while [[ "$dir" != "/" ]]; do
+        if [[ -f "$dir/.local_module_completion" ]]; then
+            # Also verify we're in a Python project
+            if _is_python_project; then
+                return 0
+            fi
+            return 1
+        fi
+        dir="${dir:h}"
+    done
+    return 1
+}
+
+_default_python_module_completion() {
+    # Fall back to zsh's default Python module completion
+    # This allows the built-in completion to work when marker file doesn't exist
+    local -a modules
+    
+    # Use Python's pkgutil to list available modules
+    modules=(${(f)"$(python -c 'import pkgutil; print("\n".join([m.name for m in pkgutil.iter_modules()]))' 2>/dev/null)"})
+    
+    if [[ ${#modules[@]} -gt 0 ]]; then
+        _describe -t modules 'Python modules' modules
+        return 0
+    fi
+    
     return 1
 }
 

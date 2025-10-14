@@ -101,10 +101,21 @@ Tab completion works as:
 4. `python -m my_module.sub_module.<TAB>` → `deep_module`
 
 
+## Activation
+
+**Important**: This plugin only activates when you create a `.local_module_completion` file in your Python project root. This ensures that zsh's default Python module completion continues to work normally in directories without this marker file.
+
+To enable local module completion for a project:
+```bash
+# In your project root directory
+touch .local_module_completion
+```
+
+Without this file, the plugin falls back to zsh's default Python module completion, which lists installed packages from your Python environment.
+
 ## Project Detection
 
-The plugin detects Python projects by looking for:
+When the `.local_module_completion` file is present, the plugin detects Python projects by looking for:
 - Virtual environments (`venv`, `.venv`, `env`, `.env`)
 - Python project files (`pyproject.toml`, `setup.py`, `requirements.txt`, `Pipfile`, `poetry.lock`)
 - Package directories (containing `__init__.py`)
-- Active conda/virtual environments (`$CONDA_DEFAULT_ENV`, `$VIRTUAL_ENV`)
