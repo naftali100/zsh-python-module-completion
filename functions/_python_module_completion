@@ -1,6 +1,22 @@
 #compdef python python3
 
 _python_module_completion() {
+    # Check if we should use local completion first
+    if ! _should_use_local_completion; then
+        # Fall back to zsh's default python completion
+        if [[ -n "$_PYTHON_ORIGINAL_COMPLETION" ]]; then
+            # Execute the saved original completion function
+            eval "$_PYTHON_ORIGINAL_COMPLETION"
+            return $?
+        else
+            # Fallback if original wasn't saved (shouldn't happen)
+            autoload +X _python 2>/dev/null
+            _python "$@"
+            return $?
+        fi
+    fi
+    
+    # Use our custom completion
     local curcontext="$curcontext" state line
     typeset -A opt_args
 
@@ -21,14 +37,9 @@ _python_module_completion() {
 }
 
 _python_complete_modules() {
-
-    # Check if we are in a python project AND have the marker file
-    if ! _should_use_local_completion; then
-        # Fall back to default completion
-        _default_python_module_completion
-        return $?
-    fi
-
+    # We've already checked _should_use_local_completion in the main function
+    # So we can proceed directly with local module completion
+    
     local -a modules completions
     local cur_word prefix
     
@@ -231,22 +242,6 @@ _should_use_local_completion() {
         fi
         dir="${dir:h}"
     done
-    return 1
-}
-
-_default_python_module_completion() {
-    # Fall back to zsh's default Python module completion
-    # This allows the built-in completion to work when marker file doesn't exist
-    local -a modules
-    
-    # Use Python's pkgutil to list available modules
-    modules=(${(f)"$(python -c 'import pkgutil; print("\n".join([m.name for m in pkgutil.iter_modules()]))' 2>/dev/null)"})
-    
-    if [[ ${#modules[@]} -gt 0 ]]; then
-        _describe -t modules 'Python modules' modules
-        return 0
-    fi
-    
     return 1
 }
 

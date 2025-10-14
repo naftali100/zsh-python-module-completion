@@ -10,6 +10,10 @@ fpath=("$PLUGIN_DIR/functions" $fpath)
 
 autoload -U compinit && compinit
 
+# Save the original _python completion before we override it
+autoload +X _python 2>/dev/null
+typeset -g _PYTHON_ORIGINAL_COMPLETION="$functions[_python]"
+
 # Load the completion function
 autoload -U _python_module_completion
 

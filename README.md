@@ -103,7 +103,7 @@ Tab completion works as:
 
 ## Activation
 
-**Important**: This plugin only activates when you create a `.local_module_completion` file in your Python project root. This ensures that zsh's default Python module completion continues to work normally in directories without this marker file.
+**Important**: This plugin only activates when you create a `.local_module_completion` file in your Python project root. This ensures that zsh's default Python completion (including all command-line options and module completion) continues to work normally in directories without this marker file.
 
 To enable local module completion for a project:
 ```bash
@@ -111,7 +111,9 @@ To enable local module completion for a project:
 touch .local_module_completion
 ```
 
-Without this file, the plugin falls back to zsh's default Python module completion, which lists installed packages from your Python environment.
+Without this file, the plugin completely defers to zsh's built-in Python completion, preserving all standard completion behavior including:
+- Command-line options (`python -<TAB>` shows `-c`, `-m`, `-V`, etc.)
+- Module completion after `-m` (lists installed packages from your Python environment)
 
 ## Project Detection
 
