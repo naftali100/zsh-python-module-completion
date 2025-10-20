@@ -4,19 +4,32 @@ _python_module_completion() {
     # Check if we should use local completion first
     if ! _should_use_local_completion; then
         # Fall back to zsh's default python completion
-        if [[ -n "$_PYTHON_ORIGINAL_COMPLETION" ]]; then
-            # Execute the saved original completion function
-            eval "$_PYTHON_ORIGINAL_COMPLETION"
-            return $?
-        else
-            # Fallback if original wasn't saved (shouldn't happen)
-            autoload +X _python 2>/dev/null
-            _python "$@"
-            return $?
-        fi
+        _python_original_wrapper "$@"
+        return $?
     fi
     
-    # Use our custom completion
+    # Check if -m option is in the command line (including current word)
+    local has_m_option=0
+    local i
+    for ((i=1; i <= CURRENT; i++)); do
+        if [[ "${words[i]}" == "-m" ]]; then
+            has_m_option=1
+            break
+        fi
+    done
+    
+    # Also check if current word starts with -m (for cases like -m<TAB>)
+    if [[ "${words[CURRENT]}" == -m* ]]; then
+        has_m_option=1
+    fi
+    
+    # If no -m option at or before current position, use default completion
+    if [[ $has_m_option -eq 0 ]]; then
+        _python_original_wrapper "$@"
+        return $?
+    fi
+    
+    # Use our custom completion for -m module completion
     local curcontext="$curcontext" state line
     typeset -A opt_args
 
@@ -31,9 +44,24 @@ _python_module_completion() {
             return 0
             ;;
         *)
-            return 1
+            # For other states, fall back to default completion
+            _python_original_wrapper "$@"
+            return $?
             ;;
     esac
+}
+
+# Wrapper function to call the original Python completion
+_python_original_wrapper() {
+    if [[ -n "$_PYTHON_ORIGINAL_COMPLETION" ]]; then
+        # Execute the original completion function body in current context
+        eval "$_PYTHON_ORIGINAL_COMPLETION"
+    else
+        # Fallback if original wasn't saved (shouldn't happen)
+        autoload +X _python 2>/dev/null
+        _python "$@"
+        return $?
+    fi
 }
 
 _python_complete_modules() {
@@ -82,10 +110,25 @@ _python_complete_modules() {
     
     # Remove duplicates and complete
     if [[ ${#completions[@]} -gt 0 ]]; then
-        local -a unique_completions
+        local -a unique_completions valid_completions
         for item in "${completions[@]}"; do
             if [[ ! " ${unique_completions[@]} " =~ " ${item} " ]]; then
                 unique_completions+=("$item")
+            fi
+        done
+        
+        # Filter to only include valid modules (ones that actually exist in the modules list)
+        for completion in "${unique_completions[@]}"; do
+            local is_valid=0
+            # Check if this completion is a complete module or has submodules
+            for module in "${modules[@]}"; do
+                if [[ "$module" == "$completion" ]] || [[ "$module" == "${completion}."* ]]; then
+                    is_valid=1
+                    break
+                fi
+            done
+            if [[ $is_valid -eq 1 ]]; then
+                valid_completions+=("$completion")
             fi
         done
         
@@ -93,7 +136,7 @@ _python_complete_modules() {
         if [[ -z "$prefix" ]]; then
             # Check if any top-level modules have sub-modules
             local -a modules_with_subs modules_without_subs
-            for completion in "${unique_completions[@]}"; do
+            for completion in "${valid_completions[@]}"; do
                 local has_sub=0
                 for module in "${modules[@]}"; do
                     if [[ "$module" == "${completion}."* ]]; then
@@ -273,19 +316,50 @@ _find_python_modules() {
     # Find packages (directories with __init__.py)
     local package_cmd
     package_cmd="find . -type f -name '__init__.py' $exclude_paths"
-    modules=$(eval $package_cmd | sed -e 's|/__init__\.py$||g' -e 's|^\./||g' -e 's|/|.|g' | grep -v '^$')
+    local -a all_init_files
+    all_init_files=($(eval $package_cmd | sed -e 's|/__init__\.py$||g' -e 's|^\./||g' | grep -v '^$'))
+    
+    # Helper function to check if all parent directories have __init__.py
+    _has_init_in_all_parents() {
+        local module_path="$1"
+        # Split by / to get directory components
+        local -a parts
+        parts=(${(s:/:)module_path})
+        
+        # Check each level from top to current
+        local current=""
+        for part in "${parts[@]}"; do
+            if [[ -n "$current" ]]; then
+                current="$current/$part"
+            else
+                current="$part"
+            fi
+            
+            # Check if this level has __init__.py
+            if [[ ! -f "./$current/__init__.py" ]]; then
+                return 1
+            fi
+        done
+        return 0
+    }
+    
+    # Filter to only include modules where all parents have __init__.py
+    local -a valid_modules
+    for module_path in "${all_init_files[@]}"; do
+        if _has_init_in_all_parents "$module_path"; then
+            # Convert path to module notation (replace / with .)
+            valid_modules+=("${module_path//\//.}")
+        fi
+    done
     
     # Find top-level Python files (in root directory only)
     py_files=$(find . -maxdepth 1 -type f -name '*.py' -not -name '__init__.py' | sed -e 's|\.py$||g' -e 's|^\./||g' | grep -v '^$')
     
-    # Find Python files in package directories (directories that have __init__.py)
-    local -a package_dirs_array
-    package_dirs_array=($(eval $package_cmd | sed -e 's|/__init__\.py$||g' -e 's|^\./||g' | grep -v '^$'))
-    
+    # Find Python files in valid package directories
     local -a package_py_files_array
-    for dir in "${package_dirs_array[@]}"; do
-        if [[ -n "$dir" ]]; then
-            local dir_path="./$dir"
+    for module_path in "${all_init_files[@]}"; do
+        if _has_init_in_all_parents "$module_path"; then
+            local dir_path="./$module_path"
             local -a files_in_package
             files_in_package=($(find "$dir_path" -maxdepth 1 -type f -name '*.py' -not -name '__init__.py' 2>/dev/null | sed -e 's|\.py$||g' -e 's|^\./||g' -e 's|/|.|g' | grep -v '^$'))
             package_py_files_array+=("${files_in_package[@]}")
@@ -294,7 +368,7 @@ _find_python_modules() {
     
     # Combine and sort packages, top-level files, and package files
     {
-        echo "$modules"
+        printf '%s\n' "${valid_modules[@]}"
         echo "$py_files"
         printf '%s\n' "${package_py_files_array[@]}"
     } | grep -v '^$' | sort -u

@@ -95,10 +95,10 @@ my_project/
 ```
 
 Tab completion works as:
-1. `python -m <TAB>` → `my_module`
-2. `python -m my_module<TAB>` → `my_module` (no space, has submodules)
-3. `python -m my_module.<TAB>` → `sub_module`, `utils`
-4. `python -m my_module.sub_module.<TAB>` → `deep_module`
+1. `python -m <TAB>` -> `my_module`
+2. `python -m my_module<TAB>` -> `my_module` (no space, has submodules)
+3. `python -m my_module.<TAB>` -> `sub_module`, `utils`
+4. `python -m my_module.sub_module.<TAB>` -> `deep_module`
 
 
 ## Activation
@@ -111,9 +111,24 @@ To enable local module completion for a project:
 touch .local_module_completion
 ```
 
-Without this file, the plugin completely defers to zsh's built-in Python completion, preserving all standard completion behavior including:
-- Command-line options (`python -<TAB>` shows `-c`, `-m`, `-V`, etc.)
-- Module completion after `-m` (lists installed packages from your Python environment)
+### Completion Behavior
+
+**Without `.local_module_completion` file:**
+- The plugin completely defers to zsh's built-in Python completion
+- `python -<TAB>` -> Shows all Python options (`-c`, `-m`, `-V`, etc.)
+- `python -m <TAB>` -> Shows installed packages from your Python environment
+- `python <TAB>` -> Shows Python files in current directory
+- All other completions work as normal
+
+**With `.local_module_completion` file:**
+- `python -<TAB>` -> Shows all Python options (same as default)
+- `python -m <TAB>` -> Shows **local project modules** (custom behavior)
+- `python <TAB>` -> Shows files in current directory (same as default)
+- `python -c <TAB>` -> File completion (same as default)
+- `python -m some.module.name <TAB>` -> Show files in current directory (same as default)
+- All other completions fall back to default behavior
+
+The plugin only customizes the module completion after `-m` when the marker file is present. All other completion scenarios use zsh's default Python completion.
 
 ## Project Detection
 
