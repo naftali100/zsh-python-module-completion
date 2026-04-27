@@ -7,7 +7,8 @@ A zsh plugin that provides intelligent tab completion for `python -m` commands w
 ## Features
 
 - **Immediate Completion**: Works with both `python -m<TAB>` and `python -m <TAB>`
-- **Hierarchical Navigation**: Navigate through nested modules with tab completion (e.g., `my_package.submodule.deeper`)
+- **Full Module Path Completion**: See and complete full import paths directly (e.g., `my_package.submodule.deeper`)
+- **fzf Integration**: If `fzf` is installed, completion list is shown in an interactive picker
 - **Smart Project Detection**: Automatically detects Python projects via virtual environments, `__init__.py` files, and project configuration files
 - **Cross-Platform**: Works on Linux, macOS, and other Unix-like systems
 - **Intelligent Filtering**: Excludes virtual environments and build directories from completion
@@ -73,11 +74,12 @@ In any Python project, use tab completion with `python -m`:
 python -m<TAB>           # Shows available top-level modules  
 python -m <TAB>          # Shows available top-level modules
 
-# Hierarchical navigation  
-python -m mypackage<TAB>       # Completes to mypackage (no space if has submodules)
-python -m mypackage.<TAB>      # Shows submodules in mypackage
-python -m mypackage.sub<TAB>   # Completes to mypackage.sub
-python -m mypackage.sub.<TAB>  # Shows modules in sub
+# Full path completion
+python -m mypackage<TAB>          # Shows full matches: mypackage.api, mypackage.cli, ...
+python -m mypackage.sub<TAB>      # Shows full matches: mypackage.sub.tools, ...
+
+# If fzf is installed
+python -m <TAB>                   # Opens interactive fzf picker of full module paths
 ```
 
 ## Example
@@ -95,10 +97,9 @@ my_project/
 ```
 
 Tab completion works as:
-1. `python -m <TAB>` -> `my_module`
-2. `python -m my_module<TAB>` -> `my_module` (no space, has submodules)
-3. `python -m my_module.<TAB>` -> `sub_module`, `utils`
-4. `python -m my_module.sub_module.<TAB>` -> `deep_module`
+1. `python -m <TAB>` -> `my_module`, `my_module.sub_module`, `my_module.sub_module.deep_module`, `my_module.utils`
+2. `python -m my_module.sub<TAB>` -> `my_module.sub_module`
+3. If `fzf` is installed, pressing `<TAB>` opens an interactive picker with these full module paths
 
 
 ## Activation

@@ -65,162 +65,59 @@ _python_original_wrapper() {
 }
 
 _python_complete_modules() {
-    # We've already checked _should_use_local_completion in the main function
-    # So we can proceed directly with local module completion
-    
-    local -a modules completions
-    local cur_word prefix
-    
+    # We've already checked _should_use_local_completion in the main function.
+    # Complete using full module paths and optionally let fzf pick one.
+    local -a modules candidates
+    local cur_word selected
+
     modules=($(_find_python_modules))
     cur_word="${words[CURRENT]}"
-    
-    # For hierarchical completion
-    prefix=""
-    
-    # First check if the current word is a complete module that has submodules
+
     for module in "${modules[@]}"; do
-        if [[ "$module" == "${cur_word}."* ]]; then
-            prefix="${cur_word}."
-            break
+        if [[ -z "$cur_word" || "$module" == "$cur_word"* ]]; then
+            candidates+=("$module")
         fi
     done
-    
-    # If not found as complete module, check if it's a partial completion
-    if [[ -z "$prefix" && "$cur_word" == *.* ]]; then
-        prefix="${cur_word%.*}."
+
+    if [[ ${#candidates[@]} -eq 0 ]]; then
+        return 0
     fi
 
-    # Build completion list
-    for module in "${modules[@]}"; do
-        if [[ "$module" == "${prefix}"* ]]; then
-            if [[ -n "$prefix" ]]; then
-                # Remove prefix and get first component after it
-                local temp="${module#$prefix}"
-                local comp="${temp%%.*}"
-                if [[ -n "$comp" ]]; then
-                    completions+=("${prefix}${comp}")
-                fi
-            else
-                # Get top-level module name
-                local comp="${module%%.*}"
-                completions+=("$comp")
-            fi
-        fi
-    done
-    
-    # Remove duplicates and complete
-    if [[ ${#completions[@]} -gt 0 ]]; then
-        local -a unique_completions valid_completions
-        for item in "${completions[@]}"; do
-            if [[ ! " ${unique_completions[@]} " =~ " ${item} " ]]; then
-                unique_completions+=("$item")
-            fi
-        done
-        
-        # Filter to only include valid modules (ones that actually exist in the modules list)
-        for completion in "${unique_completions[@]}"; do
-            local is_valid=0
-            # Check if this completion is a complete module or has submodules
-            for module in "${modules[@]}"; do
-                if [[ "$module" == "$completion" ]] || [[ "$module" == "${completion}."* ]]; then
-                    is_valid=1
-                    break
-                fi
-            done
-            if [[ $is_valid -eq 1 ]]; then
-                valid_completions+=("$completion")
-            fi
-        done
-        
-        # If we're completing at the top level (no prefix)
-        if [[ -z "$prefix" ]]; then
-            # Check if any top-level modules have sub-modules
-            local -a modules_with_subs modules_without_subs
-            for completion in "${valid_completions[@]}"; do
-                local has_sub=0
-                for module in "${modules[@]}"; do
-                    if [[ "$module" == "${completion}."* ]]; then
-                        has_sub=1
-                        break
-                    fi
-                done
-                if [[ $has_sub -eq 1 ]]; then
-                    modules_with_subs+=("$completion")
-                else
-                    modules_without_subs+=("$completion")
-                fi
-            done
-            
-            # Complete modules without sub-modules with space, others without suffix
-            if [[ ${#modules_without_subs[@]} -gt 0 ]]; then
-                compadd -S " " -a modules_without_subs
-            fi
-            if [[ ${#modules_with_subs[@]} -gt 0 ]]; then
-                compadd -S "" -a modules_with_subs
-            fi
-        else
-            # We're completing sub-modules, check how many sub-modules exist for the current prefix
-            local -a submodules_for_prefix modules_with_subsubs modules_without_subsubs
-            local base_module="${prefix%.*}"  # Remove the trailing dot
-            
-            for module in "${modules[@]}"; do
-                if [[ "$module" == "${base_module}."* ]]; then
-                    local submodule="${module#${base_module}.}"
-                    local first_component="${submodule%%.*}"
-                    if [[ ! " ${submodules_for_prefix[@]} " =~ " ${first_component} " ]]; then
-                        submodules_for_prefix+=("$first_component")
-                    fi
-                fi
-            done
-            
-            # If only one submodule, check if it has further submodules
-            if [[ ${#submodules_for_prefix[@]} -eq 1 ]]; then
-                local full_submodule="${base_module}.${submodules_for_prefix[1]}"
-                local has_further_subs=0
-                
-                for module in "${modules[@]}"; do
-                    if [[ "$module" == "${full_submodule}."* ]]; then
-                        has_further_subs=1
-                        break
-                    fi
-                done
-                
-                if [[ $has_further_subs -eq 1 ]]; then
-                    # Has further submodules, complete without space
-                    compadd -S "" "$full_submodule"
-                else
-                    # No further submodules, complete with space
-                    compadd -S " " "$full_submodule"
-                fi
-            else
-                # Multiple submodules, categorize them by whether they have sub-submodules
-                for submod in "${submodules_for_prefix[@]}"; do
-                    local full_submod="${base_module}.${submod}"
-                    local has_subsubs=0
-                    
-                    for module in "${modules[@]}"; do
-                        if [[ "$module" == "${full_submod}."* ]]; then
-                            has_subsubs=1
-                            break
-                        fi
-                    done
-                    
-                    if [[ $has_subsubs -eq 1 ]]; then
-                        modules_with_subsubs+=("$submod")
-                    else
-                        modules_without_subsubs+=("$submod")
-                    fi
-                done
-                
-                # Complete modules without sub-submodules with space, others without suffix
-                if [[ ${#modules_without_subsubs[@]} -gt 0 ]]; then
-                    compadd -P "${prefix}" -S " " -a modules_without_subsubs
-                fi
-                if [[ ${#modules_with_subsubs[@]} -gt 0 ]]; then
-                    compadd -P "${prefix}" -S "" -a modules_with_subsubs
-                fi
-            fi
-        fi
+    selected=$(_python_select_with_fzf "${candidates[@]}")
+    if [[ -n "$selected" ]]; then
+        # Replace current word with the selected full module path.
+        compadd -Q -S " " -- "$selected"
+        return 0
+    fi
+
+    compadd -Q -a candidates
+}
+
+_python_select_with_fzf() {
+    local -a options
+    local selected
+    options=("$@")
+
+    if (( ${#options[@]} == 0 )); then
+        return 0
+    fi
+
+    # Only use fzf when available in an interactive shell.
+    if ! command -v fzf >/dev/null 2>&1 || [[ ! -o interactive ]]; then
+        return 0
+    fi
+
+    selected=$(printf '%s\n' "${options[@]}" | fzf \
+        --prompt='python -m > ' \
+        --height=40% \
+        --layout=reverse \
+        --border \
+        --select-1 \
+        --exit-0 \
+        --query="$PREFIX")
+
+    if [[ -n "$selected" ]]; then
+        printf '%s' "$selected"
     fi
 }
 
