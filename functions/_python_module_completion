@@ -131,7 +131,28 @@ _python_complete_modules() {
                 valid_completions+=("$completion")
             fi
         done
-        
+
+        # If fzf is available, use it for interactive selection
+        if (( $+commands[fzf] )) && [[ ${#valid_completions[@]} -gt 0 ]]; then
+            local selected
+            selected=$(printf '%s\n' "${valid_completions[@]}" | fzf --height 40% --reverse --select-1 --exit-0)
+            if [[ -n "$selected" ]]; then
+                local has_sub=0
+                for module in "${modules[@]}"; do
+                    if [[ "$module" == "${selected}."* ]]; then
+                        has_sub=1
+                        break
+                    fi
+                done
+                if [[ $has_sub -eq 1 ]]; then
+                    compadd -S "" "$selected"
+                else
+                    compadd -S " " "$selected"
+                fi
+            fi
+            return 0
+        fi
+
         # If we're completing at the top level (no prefix)
         if [[ -z "$prefix" ]]; then
             # Check if any top-level modules have sub-modules

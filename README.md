@@ -12,6 +12,7 @@ A zsh plugin that provides intelligent tab completion for `python -m` commands w
 - **Cross-Platform**: Works on Linux, macOS, and other Unix-like systems
 - **Intelligent Filtering**: Excludes virtual environments and build directories from completion
 - **Smart Suffix Handling**: Modules with submodules complete without space, final modules complete with space
+- **fzf Integration**: When [fzf](https://github.com/junegunn/fzf) is installed, completion candidates are shown in an interactive fzf picker instead of the standard zsh menu
 
 ## Installation
 
